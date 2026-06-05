@@ -1,9 +1,10 @@
 module github.com/nicolasacchi/merchant-cli
 
-go 1.25.7
+go 1.26.0
 
 require (
 	cloud.google.com/go/shopping v1.4.0
+	github.com/nicolasacchi/clicore v0.1.4
 	github.com/spf13/cobra v1.10.2
 	google.golang.org/api v0.267.0
 )
