@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"cloud.google.com/go/shopping/merchant/reports/apiv1beta"
+	"cloud.google.com/go/shopping/merchant/reports/apiv1"
 	content "google.golang.org/api/content/v2.1"
 	"google.golang.org/api/option"
 )

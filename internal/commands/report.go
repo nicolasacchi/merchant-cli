@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	reportspb "cloud.google.com/go/shopping/merchant/reports/apiv1beta/reportspb"
+	reportspb "cloud.google.com/go/shopping/merchant/reports/apiv1/reportspb"
 	"github.com/nicolasacchi/merchant-cli/internal/auth"
 	"github.com/nicolasacchi/merchant-cli/internal/output"
 	"github.com/spf13/cobra"
