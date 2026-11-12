@@ -2,7 +2,7 @@
 
 Command-line tool for Google Merchant Center. Single binary, JSON output, service account auth.
 
-Uses the [Content API v2.1](https://developers.google.com/shopping-content/reference/rest/v2.1) (products, accounts) and [Merchant API Reports](https://developers.google.com/merchant/api/reference/rest) (MCQL queries).
+Uses the [Merchant API v1](https://developers.google.com/merchant/api/reference/rest) throughout (accounts, products, reports/MCQL). The Content API for Shopping v2.1 was sunset on 2026-08-18 and is no longer used.
 
 ## Install
 
@@ -26,7 +26,7 @@ mv merchant-cli ~/.local/bin/
 ```bash
 git clone https://github.com/nicolasacchi/merchant-cli.git
 cd merchant-cli
-make install
+make install   # injects the git tag as the version
 ```
 
 ## Authentication
@@ -36,7 +36,21 @@ Uses the standard Google Cloud credential chain:
 1. `GOOGLE_APPLICATION_CREDENTIALS` environment variable (service account JSON key)
 2. Application Default Credentials (`gcloud auth application-default login`)
 
-The service account needs **Content API** scope access on the Merchant Center account.
+Flags `--credentials <file>` (service account or authorized_user JSON) and `--quota-project <gcp-project>` override the environment.
+
+### One-time GCP registration (required)
+
+The Merchant API v1 rejects every call with `401 GCP_NOT_REGISTERED` until the GCP project behind the credentials is registered with the Merchant account. A Merchant Center **admin** (not the service account) runs once:
+
+```bash
+gcloud auth application-default login \
+  --scopes=https://www.googleapis.com/auth/content,https://www.googleapis.com/auth/cloud-platform
+merchant-cli setup register-gcp --id 196138351 \
+  --developer-email <admin-email> --quota-project flawless-mason-482810-p4 --yes
+merchant-cli setup status --id 196138351   # read-only check
+```
+
+Without `--yes` the command is a dry run. The service account must additionally be added as a user of the Merchant account (Merchant Center > Settings > Account access).
 
 ## Merchant ID
 
@@ -56,7 +70,7 @@ merchant-cli accounts list
 # Get account details
 merchant-cli accounts get --id 196138351
 
-# Account status (issues, warnings)
+# Account issues (Merchant API accountIssues; replaces the old accountstatuses)
 merchant-cli accounts status --id 196138351
 ```
 
@@ -67,9 +81,9 @@ merchant-cli accounts status --id 196138351
 merchant-cli products list --max-results 10
 
 # Get a specific product
-merchant-cli products get "online:it:IT:12345"
+merchant-cli products get "it~IT~12345"   # contentLanguage~feedLabel~offerId
 
-# Search products by title/description/brand
+# Search products by title/offer id/brand (MCQL product_view, server-side)
 merchant-cli products search "aspirina" --max-results 20
 
 # Product approval statuses
@@ -80,7 +94,7 @@ merchant-cli products status --max-results 10
 
 ```bash
 # Raw MCQL query
-merchant-cli report run "SELECT product_view.id, product_view.title FROM ProductView LIMIT 5"
+merchant-cli report run "SELECT product_view.id, product_view.title FROM product_view LIMIT 5"
 
 # Product performance (clicks, impressions, CTR)
 merchant-cli report performance --start-date 2026-02-16 --end-date 2026-02-22 --limit 20

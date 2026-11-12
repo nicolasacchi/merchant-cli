@@ -1,18 +1,15 @@
 package commands
 
 import (
-	"context"
 	"fmt"
-	"strconv"
 	"strings"
 
-	"github.com/nicolasacchi/merchant-cli/internal/auth"
 	"github.com/nicolasacchi/merchant-cli/internal/output"
 	"github.com/spf13/cobra"
 )
 
 var (
-	productsMaxResults int64
+	productsMaxResults int32
 	productsPageToken  string
 )
 
@@ -23,167 +20,104 @@ var productsCmd = &cobra.Command{
 
 var productsListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List products",
+	Short: "List processed products",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := context.Background()
-		svc, err := auth.NewContentService(ctx)
+		mid, err := requireMerchantID()
 		if err != nil {
 			return err
 		}
-
-		mid := getMerchantID()
-		if mid == "" {
-			return fmt.Errorf("merchant ID required: use --id flag or MERCHANT_ID env var")
-		}
-		id, err := strconv.ParseUint(mid, 10, 64)
+		items, next, err := newService().ListProducts(ctx(), "accounts/"+mid, productsMaxResults, productsPageToken)
 		if err != nil {
-			return fmt.Errorf("invalid merchant ID: %w", err)
+			return WrapAPIError(err)
 		}
-
-		call := svc.Products.List(id).MaxResults(productsMaxResults)
-		if productsPageToken != "" {
-			call = call.PageToken(productsPageToken)
-		}
-
-		resp, err := call.Do()
-		if err != nil {
-			return err
-		}
-
-		return output.PrintJSON(map[string]any{
-			"products":      resp.Resources,
-			"nextPageToken": resp.NextPageToken,
-			"totalResults":  len(resp.Resources),
-		})
+		return output.PrintProtos("products", items, next)
 	},
 }
 
 var productsGetCmd = &cobra.Command{
 	Use:   "get <product-id>",
 	Short: "Get product details",
+	Long:  "Get a processed product. <product-id> is the Merchant API product id (contentLanguage~feedLabel~offerId, e.g. it~IT~12345) or a full name accounts/<id>/products/<id>.",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := context.Background()
-		svc, err := auth.NewContentService(ctx)
+		mid, err := requireMerchantID()
 		if err != nil {
 			return err
 		}
-
-		mid := getMerchantID()
-		if mid == "" {
-			return fmt.Errorf("merchant ID required: use --id flag or MERCHANT_ID env var")
+		name := args[0]
+		if !strings.HasPrefix(name, "accounts/") {
+			name = fmt.Sprintf("accounts/%s/products/%s", mid, name)
 		}
-		id, err := strconv.ParseUint(mid, 10, 64)
+		resp, err := newService().GetProduct(ctx(), name)
 		if err != nil {
-			return fmt.Errorf("invalid merchant ID: %w", err)
+			return WrapAPIError(err)
 		}
-
-		resp, err := svc.Products.Get(id, args[0]).Do()
-		if err != nil {
-			return err
-		}
-
-		return output.PrintJSON(resp)
+		return output.PrintProto(resp)
 	},
+}
+
+// mcqlString escapes a value for use inside a single-quoted MCQL literal.
+func mcqlString(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	return strings.ReplaceAll(s, `'`, `\'`)
+}
+
+func buildSearchQuery(q string, limit int32) string {
+	pat := "%" + mcqlString(q) + "%"
+	return fmt.Sprintf(`SELECT product_view.id, product_view.offer_id, product_view.title, product_view.brand, `+
+		`product_view.aggregated_reporting_context_status FROM product_view `+
+		`WHERE product_view.title LIKE '%s' OR product_view.offer_id LIKE '%s' OR product_view.brand LIKE '%s' LIMIT %d`,
+		pat, pat, pat, limit)
 }
 
 var productsSearchCmd = &cobra.Command{
 	Use:   "search <query>",
-	Short: "Search products by title, description, or offer ID",
+	Short: "Search products by title, brand, or offer ID (MCQL product_view)",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := context.Background()
-		svc, err := auth.NewContentService(ctx)
+		mid, err := requireMerchantID()
 		if err != nil {
 			return err
 		}
-
-		mid := getMerchantID()
-		if mid == "" {
-			return fmt.Errorf("merchant ID required: use --id flag or MERCHANT_ID env var")
-		}
-		id, err := strconv.ParseUint(mid, 10, 64)
-		if err != nil {
-			return fmt.Errorf("invalid merchant ID: %w", err)
-		}
-
-		// Content API has no native search — list and filter client-side
-		resp, err := svc.Products.List(id).MaxResults(250).Do()
-		if err != nil {
-			return err
-		}
-
-		query := strings.ToLower(args[0])
-		var filtered []any
-		for _, p := range resp.Resources {
-			title := strings.ToLower(p.Title)
-			desc := strings.ToLower(p.Description)
-			offerID := strings.ToLower(p.OfferId)
-			brand := strings.ToLower(p.Brand)
-
-			if strings.Contains(title, query) || strings.Contains(desc, query) ||
-				strings.Contains(offerID, query) || strings.Contains(brand, query) {
-				filtered = append(filtered, p)
-				if int64(len(filtered)) >= productsMaxResults {
-					break
-				}
-			}
-		}
-
-		return output.PrintJSON(map[string]any{
-			"query":        args[0],
-			"products":     filtered,
-			"totalResults": len(filtered),
-		})
+		return runReportQuery(buildSearchQuery(args[0], productsMaxResults), mid, int(productsMaxResults), map[string]any{"query": args[0]})
 	},
 }
 
 var productsStatusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "List product statuses (approval, disapproval reasons)",
+	Short: "List product statuses (productStatus on processed products)",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := context.Background()
-		svc, err := auth.NewContentService(ctx)
+		mid, err := requireMerchantID()
 		if err != nil {
 			return err
 		}
-
-		mid := getMerchantID()
-		if mid == "" {
-			return fmt.Errorf("merchant ID required: use --id flag or MERCHANT_ID env var")
-		}
-		id, err := strconv.ParseUint(mid, 10, 64)
+		items, next, err := newService().ListProducts(ctx(), "accounts/"+mid, productsMaxResults, productsPageToken)
 		if err != nil {
-			return fmt.Errorf("invalid merchant ID: %w", err)
+			return WrapAPIError(err)
 		}
-
-		call := svc.Productstatuses.List(id).MaxResults(productsMaxResults)
-		if productsPageToken != "" {
-			call = call.PageToken(productsPageToken)
+		type row struct {
+			Name   string `json:"name"`
+			Offer  string `json:"offerId"`
+			Title  string `json:"title"`
+			Status any    `json:"productStatus"`
 		}
-
-		resp, err := call.Do()
-		if err != nil {
-			return err
+		rows := make([]row, 0, len(items))
+		for _, p := range items {
+			raw, err := output.ProtoToRaw(p.GetProductStatus())
+			if err != nil {
+				return err
+			}
+			rows = append(rows, row{Name: p.GetName(), Offer: p.GetOfferId(), Title: p.GetProductAttributes().GetTitle(), Status: raw})
 		}
-
-		return output.PrintJSON(map[string]any{
-			"statuses":      resp.Resources,
-			"nextPageToken": resp.NextPageToken,
-			"totalResults":  len(resp.Resources),
-		})
+		return output.PrintJSON(map[string]any{"statuses": rows, "totalResults": len(rows), "nextPageToken": next})
 	},
 }
 
 func init() {
-	productsListCmd.Flags().Int64Var(&productsMaxResults, "max-results", 50, "Maximum results to return")
+	for _, c := range []*cobra.Command{productsListCmd, productsSearchCmd, productsStatusCmd} {
+		c.Flags().Int32Var(&productsMaxResults, "max-results", 50, "Maximum results to return")
+	}
 	productsListCmd.Flags().StringVar(&productsPageToken, "page-token", "", "Pagination token")
-	productsSearchCmd.Flags().Int64Var(&productsMaxResults, "max-results", 50, "Maximum results to return")
-	productsStatusCmd.Flags().Int64Var(&productsMaxResults, "max-results", 50, "Maximum results to return")
 	productsStatusCmd.Flags().StringVar(&productsPageToken, "page-token", "", "Pagination token")
-
-	productsCmd.AddCommand(productsListCmd)
-	productsCmd.AddCommand(productsGetCmd)
-	productsCmd.AddCommand(productsSearchCmd)
-	productsCmd.AddCommand(productsStatusCmd)
+	productsCmd.AddCommand(productsListCmd, productsGetCmd, productsSearchCmd, productsStatusCmd)
 }

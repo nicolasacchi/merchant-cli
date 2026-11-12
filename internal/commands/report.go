@@ -1,15 +1,11 @@
 package commands
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 
-	reportspb "cloud.google.com/go/shopping/merchant/reports/apiv1/reportspb"
-	"github.com/nicolasacchi/merchant-cli/internal/auth"
 	"github.com/nicolasacchi/merchant-cli/internal/output"
 	"github.com/spf13/cobra"
-	"google.golang.org/api/iterator"
 )
 
 var (
@@ -107,44 +103,32 @@ var reportCompetitiveCmd = &cobra.Command{
 }
 
 func runReport(query string) error {
-	ctx := context.Background()
-	client, err := auth.NewReportClient(ctx)
+	mid, err := requireMerchantID()
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	return runReportQuery(query, mid, 0, nil)
+}
 
-	mid := getMerchantID()
-	if mid == "" {
-		return fmt.Errorf("merchant ID required: use --id flag or MERCHANT_ID env var")
+// runReportQuery executes an MCQL query; limit 0 means unlimited.
+func runReportQuery(query, mid string, limit int, extra map[string]any) error {
+	rows, err := newService().SearchReport(ctx(), "accounts/"+mid, query, limit)
+	if err != nil {
+		return WrapAPIError(fmt.Errorf("report search: %w", err))
 	}
-
-	req := &reportspb.SearchRequest{
-		Parent: fmt.Sprintf("accounts/%s", mid),
-		Query:  query,
-	}
-
-	it := client.Search(ctx, req)
-	var rows []json.RawMessage
-	for {
-		row, err := it.Next()
-		if err == iterator.Done {
-			break
-		}
+	raws := make([]json.RawMessage, 0, len(rows))
+	for _, row := range rows {
+		b, err := output.ProtoToRaw(row)
 		if err != nil {
-			return fmt.Errorf("report search: %w", err)
+			return err
 		}
-		b, err := json.Marshal(row)
-		if err != nil {
-			return fmt.Errorf("marshal row: %w", err)
-		}
-		rows = append(rows, b)
+		raws = append(raws, b)
 	}
-
-	return output.PrintJSON(map[string]any{
-		"row_count": len(rows),
-		"rows":      rows,
-	})
+	out := map[string]any{"row_count": len(raws), "rows": raws}
+	for k, v := range extra {
+		out[k] = v
+	}
+	return output.PrintJSON(out)
 }
 
 func init() {

@@ -1,11 +1,6 @@
 package commands
 
 import (
-	"context"
-	"fmt"
-	"strconv"
-
-	"github.com/nicolasacchi/merchant-cli/internal/auth"
 	"github.com/nicolasacchi/merchant-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -15,22 +10,18 @@ var accountsCmd = &cobra.Command{
 	Short: "Manage Merchant Center accounts",
 }
 
+var accountsPageSize int32
+var accountsPageToken string
+
 var accountsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List accessible Merchant Center accounts",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := context.Background()
-		svc, err := auth.NewContentService(ctx)
+		items, next, err := newService().ListAccounts(ctx(), accountsPageSize, accountsPageToken)
 		if err != nil {
-			return err
+			return WrapAPIError(err)
 		}
-
-		resp, err := svc.Accounts.Authinfo().Do()
-		if err != nil {
-			return err
-		}
-
-		return output.PrintJSON(resp)
+		return output.PrintProtos("accounts", items, next)
 	},
 }
 
@@ -38,60 +29,38 @@ var accountsGetCmd = &cobra.Command{
 	Use:   "get",
 	Short: "Get account details",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := context.Background()
-		svc, err := auth.NewContentService(ctx)
+		mid, err := requireMerchantID()
 		if err != nil {
 			return err
 		}
-
-		mid := getMerchantID()
-		if mid == "" {
-			return fmt.Errorf("merchant ID required: use --id flag or MERCHANT_ID env var")
-		}
-		id, err := strconv.ParseUint(mid, 10, 64)
+		resp, err := newService().GetAccount(ctx(), "accounts/"+mid)
 		if err != nil {
-			return fmt.Errorf("invalid merchant ID: %w", err)
+			return WrapAPIError(err)
 		}
-
-		resp, err := svc.Accounts.Get(id, id).Do()
-		if err != nil {
-			return err
-		}
-
-		return output.PrintJSON(resp)
+		return output.PrintProto(resp)
 	},
 }
 
 var accountsStatusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Get account status (issues, warnings)",
+	Short: "Get account issues (Merchant API accountIssues)",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := context.Background()
-		svc, err := auth.NewContentService(ctx)
+		mid, err := requireMerchantID()
 		if err != nil {
 			return err
 		}
-
-		mid := getMerchantID()
-		if mid == "" {
-			return fmt.Errorf("merchant ID required: use --id flag or MERCHANT_ID env var")
-		}
-		id, err := strconv.ParseUint(mid, 10, 64)
+		items, next, err := newService().ListAccountIssues(ctx(), "accounts/"+mid, accountsPageSize, accountsPageToken)
 		if err != nil {
-			return fmt.Errorf("invalid merchant ID: %w", err)
+			return WrapAPIError(err)
 		}
-
-		resp, err := svc.Accountstatuses.Get(id, id).Do()
-		if err != nil {
-			return err
-		}
-
-		return output.PrintJSON(resp)
+		return output.PrintProtos("issues", items, next)
 	},
 }
 
 func init() {
-	accountsCmd.AddCommand(accountsListCmd)
-	accountsCmd.AddCommand(accountsGetCmd)
-	accountsCmd.AddCommand(accountsStatusCmd)
+	for _, c := range []*cobra.Command{accountsListCmd, accountsStatusCmd} {
+		c.Flags().Int32Var(&accountsPageSize, "max-results", 50, "Maximum results to return")
+		c.Flags().StringVar(&accountsPageToken, "page-token", "", "Pagination token")
+	}
+	accountsCmd.AddCommand(accountsListCmd, accountsGetCmd, accountsStatusCmd)
 }
