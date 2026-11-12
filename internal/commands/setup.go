@@ -46,11 +46,15 @@ The caller needs ADMIN access on the Merchant account: either the service
 account itself (if it was added as an admin user in Merchant Center >
 Settings > Account access) or an admin's own Google credentials:
 
-  merchant-cli setup register-gcp --id <account-id> --yes          # service account with ADMIN access
-  gcloud auth application-default login \
+  merchant-cli setup register-gcp --id <account-id> --yes          # service account with ADMIN access (simplest)
+
+  # admin user: gcloud's built-in OAuth client is blocked by Google for the
+  # content scope, so pass your own Desktop OAuth client (--client-id-file)
+  gcloud auth application-default login --client-id-file=<oauth-client.json> \
     --scopes=https://www.googleapis.com/auth/content,https://www.googleapis.com/auth/cloud-platform
   merchant-cli setup register-gcp --id <account-id> \
-    --developer-email <admin-email> --quota-project ` + projectID + ` --yes   # admin user
+    --credentials ~/.config/gcloud/application_default_credentials.json \
+    --developer-email <admin-email> --quota-project ` + projectID + ` --yes
 
 --quota-project selects the GCP project being registered when the credentials
 are a user's. --developer-email is optional: it must be a Google Account (not a

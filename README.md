@@ -46,10 +46,12 @@ The Merchant API v1 rejects every call with `401 GCP_NOT_REGISTERED` until the G
 # service account with ADMIN access
 merchant-cli setup register-gcp --id 196138351 --yes
 
-# or an admin user
-gcloud auth application-default login \
+# or an admin user. Google blocks gcloud's built-in OAuth client for the
+# content scope ("This app is blocked"), so use your own Desktop OAuth client
+gcloud auth application-default login --client-id-file=<oauth-client.json> \
   --scopes=https://www.googleapis.com/auth/content,https://www.googleapis.com/auth/cloud-platform
 merchant-cli setup register-gcp --id 196138351 \
+  --credentials ~/.config/gcloud/application_default_credentials.json \
   --developer-email <admin-email> --quota-project flawless-mason-482810-p4 --yes
 
 merchant-cli setup status --id 196138351   # read-only check
