@@ -177,3 +177,13 @@ func TestRegisterGcpDryRunThenYes(t *testing.T) {
 		t.Fatalf("developer email is optional: err=%v n=%d email=%q", err, f.registered, f.gotEmail)
 	}
 }
+
+func TestRegisterGcpPermissionHint(t *testing.T) {
+	f := setup(t)
+	registerYes = true
+	f.err = errors.New("googleapi: Error 403: ... REASON:PERMISSION_DENIED_INSUFFICIENT_PERMISSIONS")
+	err := setupRegisterCmd.RunE(setupRegisterCmd, nil)
+	if err == nil || !strings.Contains(err.Error(), "do not have ADMIN access on accounts/196138351") {
+		t.Fatalf("want ADMIN hint, got %v", err)
+	}
+}

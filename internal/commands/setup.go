@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/nicolasacchi/merchant-cli/internal/output"
 	"github.com/spf13/cobra"
@@ -76,6 +77,11 @@ what it would do.`,
 		}
 		resp, err := newService().RegisterGcp(ctx(), mid, registerEmail)
 		if err != nil {
+			if strings.Contains(err.Error(), "PERMISSION_DENIED_INSUFFICIENT_PERMISSIONS") {
+				return fmt.Errorf("%w\n\nThese credentials do not have ADMIN access on accounts/%s. Either give the service account\n"+
+					"Admin access in Merchant Center (Settings > People and access) and re-run, or run this command with an\n"+
+					"admin's own credentials (gcloud auth application-default login ...) and --quota-project %s", err, mid, projectID)
+			}
 			return err
 		}
 		return output.PrintProto(resp)
