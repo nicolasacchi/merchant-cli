@@ -173,7 +173,7 @@ func TestRegisterGcpDryRunThenYes(t *testing.T) {
 		t.Fatalf("err=%v n=%d acct=%q out=%s", err, f.registered, f.gotAccount, out)
 	}
 	registerEmail = ""
-	if err := setupRegisterCmd.RunE(setupRegisterCmd, nil); err == nil {
-		t.Fatal("email required")
+	if _, err := capture(t, func() error { return setupRegisterCmd.RunE(setupRegisterCmd, nil) }); err != nil || f.registered != 2 || f.gotEmail != "" {
+		t.Fatalf("developer email is optional: err=%v n=%d email=%q", err, f.registered, f.gotEmail)
 	}
 }

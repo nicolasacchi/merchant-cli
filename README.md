@@ -40,17 +40,22 @@ Flags `--credentials <file>` (service account or authorized_user JSON) and `--qu
 
 ### One-time GCP registration (required)
 
-The Merchant API v1 rejects every call with `401 GCP_NOT_REGISTERED` until the GCP project behind the credentials is registered with the Merchant account. A Merchant Center **admin** (not the service account) runs once:
+The Merchant API v1 rejects every call with `401 GCP_NOT_REGISTERED` until the GCP project behind the credentials is registered with the Merchant account. Run it once with credentials that have **ADMIN** access on the Merchant account, either the service account (if it is an admin user in Merchant Center > Settings > Account access) or an admin's own Google credentials:
 
 ```bash
+# service account with ADMIN access
+merchant-cli setup register-gcp --id 196138351 --yes
+
+# or an admin user
 gcloud auth application-default login \
   --scopes=https://www.googleapis.com/auth/content,https://www.googleapis.com/auth/cloud-platform
 merchant-cli setup register-gcp --id 196138351 \
   --developer-email <admin-email> --quota-project flawless-mason-482810-p4 --yes
+
 merchant-cli setup status --id 196138351   # read-only check
 ```
 
-Without `--yes` the command is a dry run. The service account must additionally be added as a user of the Merchant account (Merchant Center > Settings > Account access).
+Without `--yes` the command is a dry run. `--developer-email` is optional (a Google Account, not a service account; it gets the API developer role). Google considers registration complete once at least one Merchant Center user has the API developer role. The service account must also be a user of the Merchant account to read data.
 
 ## Merchant ID
 

@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
@@ -42,32 +41,37 @@ var setupRegisterCmd = &cobra.Command{
 account. Required once per (project, account) before any Merchant API v1 call
 works; until then every call fails with 401 GCP_NOT_REGISTERED.
 
-It must be run with the credentials of a Merchant Center ADMIN user, not the
-service account. Typical flow:
+The caller needs ADMIN access on the Merchant account: either the service
+account itself (if it was added as an admin user in Merchant Center >
+Settings > Account access) or an admin's own Google credentials:
 
+  merchant-cli setup register-gcp --id <account-id> --yes          # service account with ADMIN access
   gcloud auth application-default login \
     --scopes=https://www.googleapis.com/auth/content,https://www.googleapis.com/auth/cloud-platform
   merchant-cli setup register-gcp --id <account-id> \
-    --developer-email <admin-email> --quota-project ` + projectID + ` --yes
+    --developer-email <admin-email> --quota-project ` + projectID + ` --yes   # admin user
 
---quota-project selects the GCP project being registered. The developer email
-must belong to a Google Account (not a service account); it gets the
-API_DEVELOPER role / API notifications. Without --yes the command only prints
+--quota-project selects the GCP project being registered when the credentials
+are a user's. --developer-email is optional: it must be a Google Account (not a
+service account) and gets the API_DEVELOPER role (existing users are updated,
+others are invited). Registration is complete only once at least one Merchant
+Center user has the API developer role. Without --yes the command only prints
 what it would do.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		mid, err := requireMerchantID()
 		if err != nil {
 			return err
 		}
-		if registerEmail == "" {
-			return errors.New("--developer-email is required")
-		}
 		project := quotaProject
 		if project == "" {
 			project = "<unset: the project of the credentials>"
 		}
+		email := registerEmail
+		if email == "" {
+			email = "<none>"
+		}
 		if !registerYes {
-			fmt.Fprintf(os.Stderr, "Dry run: would register GCP project %s with accounts/%s (developer email %s). Re-run with --yes to apply.\n", project, mid, registerEmail)
+			fmt.Fprintf(os.Stderr, "Dry run: would register GCP project %s with accounts/%s (developer email %s). Re-run with --yes to apply.\n", project, mid, email)
 			return nil
 		}
 		resp, err := newService().RegisterGcp(ctx(), mid, registerEmail)
@@ -79,7 +83,7 @@ what it would do.`,
 }
 
 func init() {
-	setupRegisterCmd.Flags().StringVar(&registerEmail, "developer-email", "", "Google Account email to receive the API developer role (required)")
+	setupRegisterCmd.Flags().StringVar(&registerEmail, "developer-email", "", "Optional Google Account email (not a service account) to receive the API developer role")
 	setupRegisterCmd.Flags().BoolVar(&registerYes, "yes", false, "Actually perform the registration (otherwise dry run)")
 	setupCmd.AddCommand(setupStatusCmd, setupRegisterCmd)
 }
