@@ -72,7 +72,7 @@ func WrapAPIError(err error) error {
 	if strings.Contains(err.Error(), "GCP_NOT_REGISTERED") {
 		return fmt.Errorf("%w\n\nThe GCP project used by these credentials is not registered with Merchant account %s.\n"+
 			"A Merchant Center admin must run once:\n"+
-			"  merchant-cli setup register-gcp --id %s --developer-email <admin@example.com> --quota-project %s\n"+
+			"  merchant-cli setup register-gcp --id %s --developer-email <admin@example.com> --quota-project %s --yes\n"+
 			"using the admin's own credentials (gcloud auth application-default login, or --credentials <authorized_user.json>).\n"+
 			"See 'merchant-cli setup register-gcp --help'.", err, orUnknown(getMerchantID()), orUnknown(getMerchantID()), projectID)
 	}
