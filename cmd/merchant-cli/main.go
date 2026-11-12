@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	"github.com/nicolasacchi/clicore/cierrors"
 	"github.com/nicolasacchi/merchant-cli/internal/commands"
@@ -12,8 +13,20 @@ import (
 
 var version = "dev"
 
+// resolveVersion prefers the -ldflags value (Makefile, goreleaser) and falls
+// back to the module version so `go install ...@vX.Y.Z` reports the tag.
+func resolveVersion() string {
+	if version != "dev" {
+		return version
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		return bi.Main.Version
+	}
+	return version
+}
+
 func main() {
-	commands.SetVersion(version)
+	commands.SetVersion(resolveVersion())
 	if err := commands.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(exitCode(err))
