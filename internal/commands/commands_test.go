@@ -186,4 +186,9 @@ func TestRegisterGcpPermissionHint(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "do not have ADMIN access on accounts/196138351") {
 		t.Fatalf("want ADMIN hint, got %v", err)
 	}
+	// gcloud's built-in OAuth client is blocked for the content scope, so the
+	// hint must point at a user-supplied client, never a bare ADC login.
+	if !strings.Contains(err.Error(), "--client-id-file") {
+		t.Fatalf("hint must mention --client-id-file, got %v", err)
+	}
 }

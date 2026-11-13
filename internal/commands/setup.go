@@ -84,7 +84,9 @@ what it would do.`,
 			if strings.Contains(err.Error(), "PERMISSION_DENIED_INSUFFICIENT_PERMISSIONS") {
 				return fmt.Errorf("%w\n\nThese credentials do not have ADMIN access on accounts/%s. Either give the service account\n"+
 					"Admin access in Merchant Center (Settings > People and access) and re-run, or run this command with an\n"+
-					"admin's own credentials (gcloud auth application-default login ...) and --quota-project %s", err, mid, projectID)
+					"admin's own credentials (--credentials <authorized_user.json>, created with\n"+
+					"'gcloud auth application-default login --client-id-file=<oauth-client.json>': gcloud's built-in\n"+
+					"OAuth client is blocked for the content scope) and --quota-project %s", err, mid, projectID)
 			}
 			return err
 		}
