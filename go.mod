@@ -4,9 +4,9 @@ go 1.27.0
 
 require (
 	cloud.google.com/go/shopping v1.19.0
-	github.com/nicolasacchi/clicore v0.1.5
+	github.com/nicolasacchi/clicore v0.1.6
 	github.com/spf13/cobra v1.10.2
-	google.golang.org/api v0.313.0
+	google.golang.org/api v0.315.0
 	google.golang.org/protobuf v1.36.12
 )
 
